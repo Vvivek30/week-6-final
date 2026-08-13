@@ -215,7 +215,7 @@ async function callLLM({ system, user }) {
         })
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Local backend timeout')), 3000)
+        setTimeout(() => reject(new Error('timeout')), 3000)
       )
     ]);
 
@@ -224,43 +224,35 @@ async function callLLM({ system, user }) {
       return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? data?.output_text ?? data?.text ?? 'No content returned.');
     }
   } catch (err) {
-    // Local backend failed, use fallback
+    // Local backend not available
   }
 
-  // Fallback: Use public OpenRouter API (free tier available)
+  // Fallback: Use free Hugging Face Inference API
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'PromptForge Studio'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-2-7b-chat',
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user }
         ],
-        temperature: 0.8,
-        max_tokens: 800
+        max_tokens: 400,
+        temperature: 0.8
       })
     });
 
-    let data = {};
-    try {
-      data = await response.json();
-    } catch (error) {
-      throw new Error('Failed to parse AI response. Please try again.');
+    if (response.ok) {
+      const data = await response.json();
+      return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? 'No response from AI.');
+    } else {
+      throw new Error('Public API rate limit or error');
     }
-
-    if (!response.ok) {
-      throw new Error(data?.error?.message || 'Public API request failed.');
-    }
-
-    return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? 'No content returned.');
   } catch (error) {
-    throw new Error(`AI service unavailable: ${error.message}. Please try again or use localhost:3000 for the full experience.`);
+    // If both fail, show helpful message
+    throw new Error('AI service temporarily unavailable. For the best experience, run: node server.js (and then visit http://localhost:3000)');
   }
 }
 
