@@ -24,7 +24,7 @@ const workerAgents = [
 
 const state = {
   apiBase: 'https://api-inference.huggingface.co/models',
-  model: 'google/gemma-2-2b-it',
+  model: 'google/flan-t5-small',
   theme: 'dark',
   activeAgents: {
     writer: true,
@@ -34,8 +34,6 @@ const state = {
 };
 
 const promptInput = document.getElementById('promptInput');
-const apiBaseInput = document.getElementById('apiBaseInput');
-const modelInput = document.getElementById('modelInput');
 const runButton = document.getElementById('runAgents');
 const traceList = document.getElementById('traceList');
 const finalOutput = document.getElementById('finalOutput');
@@ -48,8 +46,6 @@ const agentToggles = document.getElementById('agentToggles');
 function loadSavedState() {
   const saved = JSON.parse(localStorage.getItem('promptforge-state') || '{}');
   if (saved.prompt) promptInput.value = saved.prompt;
-  if (saved.apiBase) apiBaseInput.value = saved.apiBase;
-  if (saved.model) modelInput.value = saved.model;
   if (saved.activeAgents) state.activeAgents = { ...state.activeAgents, ...saved.activeAgents };
   if (saved.theme) {
     state.theme = saved.theme;
@@ -62,8 +58,6 @@ function saveState() {
     'promptforge-state',
     JSON.stringify({
       prompt: promptInput.value,
-      apiBase: apiBaseInput.value,
-      model: modelInput.value,
       activeAgents: state.activeAgents,
       theme: state.theme
     })
@@ -166,58 +160,20 @@ function normalizeGeneratedText(raw) {
 }
 
 async function callLLM({ system, user }) {
-  const apiBase = (apiBaseInput.value || state.apiBase).replace(/\/+$/, '');
-  const selectedModel = (modelInput.value || state.model).trim();
+  const apiBase = state.apiBase.replace(/\/+$/, '');
+  const safeModel = state.model.replace(/^\/+/, '').replace(/\/+$/, '');
 
-  if (!apiBase || !selectedModel) {
-    throw new Error('Set a live LLM base URL and model before running the AI crew.');
-  }
-
-  const isHuggingFace = apiBase.includes('huggingface.co');
-  const safeModel = selectedModel.replace(/^\/+/, '').replace(/\/+$/, '');
-
-  if (isHuggingFace) {
-    const response = await fetch(`${apiBase}/${safeModel}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        inputs: `System: ${system}\n\nUser: ${user}`,
-        parameters: {
-          max_new_tokens: 500,
-          temperature: 0.8,
-          top_p: 0.9,
-          do_sample: true
-        }
-      })
-    });
-
-    let data = {};
-    try {
-      data = await response.json();
-    } catch (error) {
-      throw new Error('The live LLM returned unreadable output. Try another public model or endpoint.');
-    }
-
-    if (!response.ok) {
-      throw new Error(data?.error || data?.message || 'The live Hugging Face model failed.');
-    }
-
-    return normalizeGeneratedText(data);
-  }
-
-  const response = await fetch(`${apiBase}/chat/completions`, {
+  const response = await fetch(`${apiBase}/${safeModel}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + (apiBase.includes('openrouter') ? 'demo' : '')
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: safeModel,
-      temperature: 0.8,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user }
-      ]
+      inputs: `System: ${system}\n\nUser: ${user}`,
+      parameters: {
+        max_new_tokens: 500,
+        temperature: 0.8,
+        top_p: 0.9,
+        do_sample: true
+      }
     })
   });
 
@@ -225,14 +181,14 @@ async function callLLM({ system, user }) {
   try {
     data = await response.json();
   } catch (error) {
-    throw new Error('The live LLM server returned unreadable output.');
+    throw new Error('The live LLM returned unreadable output. Please try again.');
   }
 
   if (!response.ok) {
-    throw new Error(data?.error?.message || data?.message || 'Live LLM request failed.');
+    throw new Error(data?.error || data?.message || 'The built-in live LLM failed.');
   }
 
-  return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? data?.output_text ?? data?.text ?? 'No content returned.');
+  return normalizeGeneratedText(data);
 }
 
 const agentScripts = {
@@ -306,6 +262,14 @@ async function orchestrateWritingCrew() {
     let lastResult = '';
 
     for (const agentId of enabledAgents) {
+      if (agentId === 'finisher') {
+        const finalStep = buildAgentPrompt('finisher', userPrompt, context);
+        const finalResult = await callLLM(finalStep);
+        appendTrace('Final Finisher', 'Final Answer', agentScripts.finisher.instruction, finalResult);
+        finalOutput.textContent = finalResult;
+        break;
+      }
+
       const step = buildAgentPrompt(agentId, userPrompt, context);
       const result = await callLLM(step);
       appendTrace(agentScripts[agentId].name, agentScripts[agentId].role, agentScripts[agentId].instruction, result);
@@ -313,12 +277,7 @@ async function orchestrateWritingCrew() {
       lastResult = result;
     }
 
-    if (state.activeAgents.finisher) {
-      const finalStep = buildAgentPrompt('finisher', userPrompt, context);
-      const finalResult = await callLLM(finalStep);
-      appendTrace('Final Finisher', 'Final Answer', agentScripts.finisher.instruction, finalResult);
-      finalOutput.textContent = finalResult;
-    } else {
+    if (!state.activeAgents.finisher && enabledAgents.length > 0) {
       finalOutput.textContent = lastResult || 'No content returned by the enabled agents.';
     }
 
@@ -355,7 +314,7 @@ function wireEvents() {
     saveState();
   });
 
-  [promptInput, apiBaseInput, modelInput].forEach((element) => {
+  [promptInput].forEach((element) => {
     element.addEventListener('input', saveState);
   });
 }
