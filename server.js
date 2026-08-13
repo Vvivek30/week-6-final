@@ -56,6 +56,18 @@ function callGitHubCopilot(payload) {
 }
 
 const server = http.createServer(async (req, res) => {
+  // CORS headers for all responses
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
   if (req.url === '/api/chat' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => (body += chunk));
