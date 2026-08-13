@@ -293,7 +293,53 @@ label {
   color: var(--danger);
 }
 
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 560px;
+  max-height: 620px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.message-row {
+  display: flex;
+  width: 100%;
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-row.assistant {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: 82%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-row.user .message-bubble {
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  color: white;
+  border-bottom-right-radius: 6px;
+}
+
+.message-row.assistant .message-bubble {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-bottom-left-radius: 6px;
+}
+
 .final-output {
+  display: none;
   white-space: pre-wrap;
   line-height: 1.75;
   font-size: 1.04rem;
@@ -303,6 +349,10 @@ label {
   padding: 18px;
   min-height: 620px;
   overflow: auto;
+}
+
+.final-output.visible {
+  display: block;
 }
 
 .trace-card {

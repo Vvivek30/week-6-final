@@ -37,16 +37,22 @@ const promptInput = document.getElementById('promptInput');
 const runButton = document.getElementById('runAgents');
 const traceList = document.getElementById('traceList');
 const finalOutput = document.getElementById('finalOutput');
+const chatHistory = document.getElementById('chatHistory');
 const statusBadge = document.getElementById('statusBadge');
 const traceTemplate = document.getElementById('traceTemplate');
 const themeToggle = document.getElementById('themeToggle');
 const clearTraceButton = document.getElementById('clearTrace');
 const agentToggles = document.getElementById('agentToggles');
 
+const chatState = {
+  messages: []
+};
+
 function loadSavedState() {
   const saved = JSON.parse(localStorage.getItem('promptforge-state') || '{}');
   if (saved.prompt) promptInput.value = saved.prompt;
   if (saved.activeAgents) state.activeAgents = { ...state.activeAgents, ...saved.activeAgents };
+  if (saved.messages) chatState.messages = saved.messages;
   if (saved.theme) {
     state.theme = saved.theme;
     applyTheme(saved.theme);
@@ -59,6 +65,7 @@ function saveState() {
     JSON.stringify({
       prompt: promptInput.value,
       activeAgents: state.activeAgents,
+      messages: chatState.messages,
       theme: state.theme
     })
   );
@@ -98,6 +105,36 @@ function buildToggleUI() {
 function setStatus(label, mode) {
   statusBadge.textContent = label;
   statusBadge.className = `status-badge ${mode}`;
+}
+
+function renderChatHistory() {
+  chatHistory.innerHTML = '';
+
+  if (chatState.messages.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'message-row assistant';
+    empty.innerHTML = '<div class="message-bubble">Hi! Ask me anything and I’ll answer with the live AI crew.</div>';
+    chatHistory.appendChild(empty);
+    return;
+  }
+
+  chatState.messages.forEach((message) => {
+    const row = document.createElement('div');
+    row.className = `message-row ${message.role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+    bubble.textContent = message.content;
+    row.appendChild(bubble);
+    chatHistory.appendChild(row);
+  });
+
+  chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+function addMessage(role, content) {
+  chatState.messages.push({ role, content });
+  renderChatHistory();
+  saveState();
 }
 
 function appendTrace(agentName, role, instruction, result) {
@@ -238,7 +275,9 @@ async function orchestrateWritingCrew() {
     return;
   }
 
+  addMessage('user', userPrompt);
   finalOutput.textContent = 'The orchestrator is assigning the live AI crew...';
+  finalOutput.classList.add('visible');
   setStatus('Running', 'running');
   clearTrace();
   appendTrace('Orchestrator', 'Boss', 'Review the request and assign the live writing workflow.', 'Starting the multi-agent plan.');
@@ -281,11 +320,13 @@ async function orchestrateWritingCrew() {
       finalOutput.textContent = lastResult || 'No content returned by the enabled agents.';
     }
 
+    addMessage('assistant', finalOutput.textContent || 'No answer generated.');
     setStatus('Complete', 'done');
     saveState();
   } catch (error) {
     const message = error.message || 'Something went wrong during the live LLM workflow.';
     finalOutput.textContent = `Error: ${message}\n\nTry another public model endpoint or the correct Hugging Face model name.`;
+    addMessage('assistant', `Error: ${message}`);
     setStatus('Error', 'error');
     appendTrace('System', 'Error', 'Live AI workflow interrupted', message);
   }
@@ -304,7 +345,11 @@ function wireEvents() {
   clearTraceButton.addEventListener('click', () => {
     clearTrace();
     finalOutput.textContent = 'The agent log has been cleared. Ready for the next run.';
+    finalOutput.classList.remove('visible');
+    chatState.messages = [];
+    renderChatHistory();
     setStatus('Idle', 'idle');
+    saveState();
   });
 
   themeToggle.addEventListener('click', () => {
@@ -328,6 +373,7 @@ function init() {
   buildToggleUI();
   bindPresetButtons();
   wireEvents();
+  renderChatHistory();
   if (!promptInput.value.trim()) {
     seedDemoPrompt();
   }
