@@ -23,8 +23,8 @@ const workerAgents = [
 ];
 
 const state = {
-  apiBase: 'https://api-inference.huggingface.co/models',
-  model: 'google/flan-t5-small',
+  apiBase: 'https://text.pollinations.ai/openai',
+  model: 'openai',
   theme: 'dark',
   activeAgents: {
     writer: true,
@@ -200,17 +200,18 @@ async function callLLM({ system, user }) {
   const apiBase = state.apiBase.replace(/\/+$/, '');
   const safeModel = state.model.replace(/^\/+/, '').replace(/\/+$/, '');
 
-  const response = await fetch(`${apiBase}/${safeModel}`, {
+  const response = await fetch(`${apiBase}/chat/completions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({
-      inputs: `System: ${system}\n\nUser: ${user}`,
-      parameters: {
-        max_new_tokens: 500,
-        temperature: 0.8,
-        top_p: 0.9,
-        do_sample: true
-      }
+      model: safeModel,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user }
+      ],
+      temperature: 0.8
     })
   });
 
@@ -222,10 +223,11 @@ async function callLLM({ system, user }) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || 'The built-in live LLM failed.');
+    const message = data?.error?.message || data?.message || data?.error || 'The built-in live LLM failed.';
+    throw new Error(message);
   }
 
-  return normalizeGeneratedText(data);
+  return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? data?.output_text ?? data?.text ?? 'No content returned.');
 }
 
 const agentScripts = {
