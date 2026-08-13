@@ -43,16 +43,12 @@
               <h2>⚙️ LLM Settings</h2>
             </div>
             <label>
-              API Base URL
-              <input id="apiBaseInput" type="text" value="https://api.openai.com/v1" />
+              Live LLM Base URL
+              <input id="apiBaseInput" type="text" value="https://api-inference.huggingface.co/models" />
             </label>
             <label>
               Model
-              <input id="modelInput" type="text" value="gpt-4o-mini" />
-            </label>
-            <label>
-              API Key
-              <input id="apiKeyInput" type="password" placeholder="Enter your API key here" />
+              <input id="modelInput" type="text" value="google/flan-t5-small" />
             </label>
             <div class="toggle-stack" id="agentToggles"></div>
           </section>

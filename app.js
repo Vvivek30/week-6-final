@@ -23,9 +23,8 @@ const workerAgents = [
 ];
 
 const state = {
-  apiBase: 'https://api.openai.com/v1',
-  model: 'gpt-4o-mini',
-  apiKey: '',
+  apiBase: 'https://api-inference.huggingface.co/models',
+  model: 'google/flan-t5-small',
   theme: 'dark',
   activeAgents: {
     writer: true,
@@ -37,7 +36,6 @@ const state = {
 const promptInput = document.getElementById('promptInput');
 const apiBaseInput = document.getElementById('apiBaseInput');
 const modelInput = document.getElementById('modelInput');
-const apiKeyInput = document.getElementById('apiKeyInput');
 const runButton = document.getElementById('runAgents');
 const traceList = document.getElementById('traceList');
 const finalOutput = document.getElementById('finalOutput');
@@ -144,35 +142,48 @@ function bindPresetButtons() {
 }
 
 async function callLLM({ system, user }) {
-  const apiKey = apiKeyInput.value.trim();
   const apiBase = (apiBaseInput.value || state.apiBase).replace(/\/+$/, '');
+  const selectedModel = modelInput.value || state.model;
+  const isHuggingFace = apiBase.includes('huggingface.co');
 
-  if (!apiKey) {
-    throw new Error('Please add an API key in the LLM settings panel before running agents.');
+  if (isHuggingFace) {
+    const modelUrl = `${apiBase}/${selectedModel}`;
+    const response = await fetch(modelUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: `System: ${system}\n\nUser: ${user}`,
+        parameters: {
+          max_new_tokens: 300,
+          temperature: 0.8,
+          do_sample: true
+        }
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'The live Hugging Face model request failed.');
+    }
+
+    if (Array.isArray(data)) {
+      return data[0]?.generated_text?.trim() || 'No content returned.';
+    }
+
+    if (typeof data?.generated_text === 'string') {
+      return data.generated_text.trim();
+    }
+
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    return 'No content returned.';
   }
 
-  const response = await fetch(`${apiBase}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: modelInput.value || state.model,
-      temperature: 0.8,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user }
-      ]
-    })
-  });
-
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.error?.message || 'LLM request failed. Please check your API base URL and key.');
-  }
-
-  return data.choices?.[0]?.message?.content?.trim() || 'No content returned.';
+  throw new Error('No API key is stored in this app. Use the default Hugging Face endpoint or switch to an authenticated model provider.');
 }
 
 function buildAgentPrompt(agent, userPrompt, contextText = '') {
@@ -253,7 +264,7 @@ function wireEvents() {
     saveState();
   });
 
-  [promptInput, apiBaseInput, modelInput, apiKeyInput].forEach((element) => {
+  [promptInput, apiBaseInput, modelInput].forEach((element) => {
     element.addEventListener('input', saveState);
   });
 }
