@@ -251,6 +251,14 @@ async function orchestrateWritingCrew() {
 
 function wireEvents() {
   runButton.addEventListener('click', orchestrateWritingCrew);
+
+  promptInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      orchestrateWritingCrew();
+    }
+  });
+
   clearTraceButton.addEventListener('click', () => {
     clearTrace();
     finalOutput.textContent = 'The agent log has been cleared. Ready for the next run.';
@@ -270,7 +278,7 @@ function wireEvents() {
 }
 
 function seedDemoPrompt() {
-  promptInput.value = 'Write a playful story about a friendly robot who explores a moonlit city and discovers that helping others is the greatest power of all.';
+  promptInput.value = 'Answer this question clearly: What is the best way to stay creative every day?';
 }
 
 function init() {
