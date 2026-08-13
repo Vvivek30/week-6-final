@@ -253,17 +253,8 @@ async function callLLM({ system, user }) {
       demoKey = 'finisher';
     }
     
-    // Customize demo response based on user input
+    // Use the full demo response (already complete and polished)
     let response = demoResponses[demoKey];
-    
-    // If user asks for something specific, give a themed response
-    if (user.toLowerCase().includes('story')) {
-      response = 'Once upon a time, a young explorer discovered an ancient map hidden in a library corner. The parchment revealed secrets of a lost civilization, promising adventure beyond imagination.';
-    } else if (user.toLowerCase().includes('blog')) {
-      response = 'Today\'s digital landscape demands authentic voices. Content creators who blend AI efficiency with human creativity build lasting connections with their audiences.';
-    } else if (user.toLowerCase().includes('email')) {
-      response = 'I\'m excited to share something special with you. We\'ve built a tool that makes writing effortless, creative, and genuinely helpful. I think you\'ll love it!';
-    }
     
     return response;
   }
