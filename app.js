@@ -24,7 +24,7 @@ const workerAgents = [
 
 const state = {
   apiBase: 'https://api-inference.huggingface.co/models',
-  model: 'google/flan-t5-small',
+  model: 'google/gemma-2-2b-it',
   theme: 'dark',
   activeAgents: {
     writer: true,
@@ -141,111 +141,194 @@ function bindPresetButtons() {
   });
 }
 
+function normalizeGeneratedText(raw) {
+  if (Array.isArray(raw)) {
+    return normalizeGeneratedText(raw[0]);
+  }
+
+  if (typeof raw === 'string') {
+    return raw.replace(/^\s*(assistant|ai)\s*:\s*/i, '').trim() || 'No content returned.';
+  }
+
+  if (raw && typeof raw === 'object') {
+    if (Array.isArray(raw.choices)) {
+      const firstChoice = raw.choices[0];
+      if (firstChoice?.message?.content) {
+        return normalizeGeneratedText(firstChoice.message.content);
+      }
+    }
+
+    const text = raw.generated_text ?? raw.text ?? raw.output ?? raw.answer ?? raw.message ?? raw.content ?? 'No content returned.';
+    return normalizeGeneratedText(text);
+  }
+
+  return 'No content returned.';
+}
+
 async function callLLM({ system, user }) {
   const apiBase = (apiBaseInput.value || state.apiBase).replace(/\/+$/, '');
-  const selectedModel = modelInput.value || state.model;
+  const selectedModel = (modelInput.value || state.model).trim();
+
+  if (!apiBase || !selectedModel) {
+    throw new Error('Set a live LLM base URL and model before running the AI crew.');
+  }
+
   const isHuggingFace = apiBase.includes('huggingface.co');
+  const safeModel = selectedModel.replace(/^\/+/, '').replace(/\/+$/, '');
 
   if (isHuggingFace) {
-    const modelUrl = `${apiBase}/${selectedModel}`;
-    const response = await fetch(modelUrl, {
+    const response = await fetch(`${apiBase}/${safeModel}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         inputs: `System: ${system}\n\nUser: ${user}`,
         parameters: {
-          max_new_tokens: 300,
+          max_new_tokens: 500,
           temperature: 0.8,
+          top_p: 0.9,
           do_sample: true
         }
       })
     });
 
-    const data = await response.json();
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (error) {
+      throw new Error('The live LLM returned unreadable output. Try another public model or endpoint.');
+    }
+
     if (!response.ok) {
-      throw new Error(data.error || 'The live Hugging Face model request failed.');
+      throw new Error(data?.error || data?.message || 'The live Hugging Face model failed.');
     }
 
-    if (Array.isArray(data)) {
-      return data[0]?.generated_text?.trim() || 'No content returned.';
-    }
-
-    if (typeof data?.generated_text === 'string') {
-      return data.generated_text.trim();
-    }
-
-    if (data?.error) {
-      throw new Error(data.error);
-    }
-
-    return 'No content returned.';
+    return normalizeGeneratedText(data);
   }
 
-  throw new Error('No API key is stored in this app. Use the default Hugging Face endpoint or switch to an authenticated model provider.');
+  const response = await fetch(`${apiBase}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + (apiBase.includes('openrouter') ? 'demo' : '')
+    },
+    body: JSON.stringify({
+      model: safeModel,
+      temperature: 0.8,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user }
+      ]
+    })
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw new Error('The live LLM server returned unreadable output.');
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error?.message || data?.message || 'Live LLM request failed.');
+  }
+
+  return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? data?.output_text ?? data?.text ?? 'No content returned.');
 }
 
-function buildAgentPrompt(agent, userPrompt, contextText = '') {
-  return `You are ${agent.name}, the ${agent.role}.\n\nUser request: ${userPrompt}\n\nContext from the orchestrator:\n${contextText}\n\nTask:\n${agent.instruction}\n\nReturn only the useful content for this step. Keep it clear, creative, and ready for the next agent.`;
+const agentScripts = {
+  writer: {
+    name: 'Writer',
+    role: 'Draft Builder',
+    instruction: 'Write a clear, engaging first draft that answers the request directly.',
+    script: ({ userPrompt, context }) => ({
+      system: 'You are the Writer agent. Create the first strong draft. Keep it readable, vivid, and complete. Answer the user request directly without fluff.',
+      user: `Prompt:\n${userPrompt}\n\nContext:\n${context}`
+    })
+  },
+  editor: {
+    name: 'Editor',
+    role: 'Style Editor',
+    instruction: 'Improve clarity, flow, grammar, and polish while keeping the original meaning.',
+    script: ({ userPrompt, context }) => ({
+      system: 'You are the Editor agent. Improve the draft by correcting grammar, smoothing language, and enhancing clarity while preserving the main idea.',
+      user: `Improve this content for the request:\n${userPrompt}\n\nCurrent draft:\n${context}`
+    })
+  },
+  finisher: {
+    name: 'Final Finisher',
+    role: 'Final Answer',
+    instruction: 'Create the final cleaned-up answer for the user, ready to deliver.',
+    script: ({ userPrompt, context }) => ({
+      system: 'You are the Final Finisher. Combine the earlier agent work into a clean, polished final response that directly answers the user.',
+      user: `Final answer request:\n${userPrompt}\n\nCombined agent work:\n${context}`
+    })
+  }
+};
+
+function buildAgentPrompt(agentId, userPrompt, contextText = '') {
+  const script = agentScripts[agentId];
+  if (!script) {
+    return { system: 'You are a helpful assistant.', user: userPrompt };
+  }
+
+  return script.script({ userPrompt, context: contextText });
 }
 
 async function orchestrateWritingCrew() {
   const userPrompt = promptInput.value.trim();
   if (!userPrompt) {
-    finalOutput.textContent = 'Please enter a prompt before running the writing crew.';
+    finalOutput.textContent = 'Please enter a question or prompt before running the AI crew.';
     setStatus('No prompt', 'error');
     return;
   }
 
-  finalOutput.textContent = 'The orchestrator is assigning the writing crew...';
+  finalOutput.textContent = 'The orchestrator is assigning the live AI crew...';
   setStatus('Running', 'running');
   clearTrace();
-  appendTrace('Orchestrator', 'Boss', 'Review the request and assign the writing workflow.', 'Starting the multi-agent plan.');
+  appendTrace('Orchestrator', 'Boss', 'Review the request and assign the live writing workflow.', 'Starting the multi-agent plan.');
 
   try {
     const orchestratorPlan = await callLLM({
-      system: 'You are a calm project orchestrator for a writing team. Decide the workflow, assign a strong creative direction, and summarize the plan in a compact way.',
-      user: `Create a short execution plan for this writing task:\n\n${userPrompt}`
+      system: 'You are a calm project orchestrator. Decide the best workflow for this question or writing task and summarize the plan clearly.',
+      user: `Create a short execution plan for this request:\n\n${userPrompt}`
     });
 
     appendTrace('Orchestrator', 'Boss', 'Execution plan', orchestratorPlan);
 
-    const activeAgents = workerAgents.filter((agent) => state.activeAgents[agent.id]);
+    const agentOrder = ['writer', 'editor', 'finisher'];
+    const enabledAgents = agentOrder.filter((agentId) => state.activeAgents[agentId]);
 
-    if (activeAgents.length === 0) {
+    if (enabledAgents.length === 0) {
       throw new Error('No agents are enabled. Turn on at least one worker before running.');
     }
 
-    let sharedContext = `User goal: ${userPrompt}\n\nOrchestrator plan: ${orchestratorPlan}`;
-    let finalDraft = '';
+    let context = `Initial request: ${userPrompt}\n\nOrchestrator plan: ${orchestratorPlan}`;
+    let lastResult = '';
 
-    for (const agent of activeAgents) {
-      const promptText = buildAgentPrompt(agent, userPrompt, sharedContext);
-      const result = await callLLM({
-        system: `You are ${agent.name}, the ${agent.role}. Build useful content and keep tone consistent.`,
-        user: promptText
-      });
-
-      appendTrace(agent.name, agent.role, agent.instruction, result);
-      sharedContext += `\n\n${agent.name} output:\n${result}`;
-      finalDraft = result;
+    for (const agentId of enabledAgents) {
+      const step = buildAgentPrompt(agentId, userPrompt, context);
+      const result = await callLLM(step);
+      appendTrace(agentScripts[agentId].name, agentScripts[agentId].role, agentScripts[agentId].instruction, result);
+      context += `\n\n${agentScripts[agentId].name} output:\n${result}`;
+      lastResult = result;
     }
 
-    const finalResult = await callLLM({
-      system: 'You are the final finisher and editor-in-chief. Merge all agent contributions into a polished final answer that is coherent, complete, and ready to deliver.',
-      user: `Create the final polished output based on the full workflow:\n\n${sharedContext}`
-    });
+    if (state.activeAgents.finisher) {
+      const finalStep = buildAgentPrompt('finisher', userPrompt, context);
+      const finalResult = await callLLM(finalStep);
+      appendTrace('Final Finisher', 'Final Answer', agentScripts.finisher.instruction, finalResult);
+      finalOutput.textContent = finalResult;
+    } else {
+      finalOutput.textContent = lastResult || 'No content returned by the enabled agents.';
+    }
 
-    appendTrace('Final Finisher', 'Delivery', 'Merge all agent contributions into one final answer.', finalResult);
-    finalOutput.textContent = finalResult;
     setStatus('Complete', 'done');
     saveState();
   } catch (error) {
-    const message = error.message || 'Something went wrong during the workflow.';
-    finalOutput.textContent = `Workflow error: ${message}`;
+    const message = error.message || 'Something went wrong during the live LLM workflow.';
+    finalOutput.textContent = `Error: ${message}\n\nTry another public model endpoint or the correct Hugging Face model name.`;
     setStatus('Error', 'error');
-    appendTrace('System', 'Error', 'Multi-agent workflow interrupted', message);
+    appendTrace('System', 'Error', 'Live AI workflow interrupted', message);
   }
 }
 
