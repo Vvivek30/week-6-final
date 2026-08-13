@@ -49,9 +49,30 @@
         margin-bottom: 18px;
       }
 
+      .title-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.72rem;
+        font-weight: 700;
+      }
+
       h1 {
         margin: 0;
         font-size: clamp(2rem, 4vw, 2.6rem);
+      }
+
+      .editor-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 14px;
       }
 
       .button-row {
@@ -97,7 +118,13 @@
   <body>
     <div class="page">
       <div class="topbar">
-        <h1>📄 Story Paper</h1>
+        <div class="title-group">
+          <p class="eyebrow">Writing Studio</p>
+          <h1>📄 Story Paper</h1>
+        </div>
+      </div>
+
+      <div class="editor-toolbar">
         <div class="button-row">
           <button class="ghost" type="button" id="backHome">← Back to AI Lab</button>
           <button class="primary" type="button" id="sendToAi">🚀 Send to AI Crew</button>
