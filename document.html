@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Story Paper</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: rgba(17, 24, 39, 0.82);
+        --panel-soft: rgba(148, 163, 184, 0.1);
+        --text: #e5eefb;
+        --primary: #8b5cf6;
+        --primary-strong: #7c3aed;
+        --secondary: #32d2c3;
+        --border: rgba(148, 163, 184, 0.2);
+      }
+
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        font-family: Inter, "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top left, rgba(139, 92, 246, 0.22), transparent 22%), var(--bg);
+        color: var(--text);
+      }
+
+      body {
+        min-height: 100vh;
+        padding: 24px;
+        display: flex;
+        justify-content: center;
+      }
+
+      .page {
+        width: min(1100px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        box-shadow: 0 18px 50px rgba(15, 23, 42, 0.45);
+        padding: 24px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 2.6rem);
+      }
+
+      .button-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.8rem 1.1rem;
+        cursor: pointer;
+        font: inherit;
+      }
+
+      .primary {
+        border: none;
+        background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+        color: white;
+        font-weight: 700;
+      }
+
+      .ghost {
+        background: rgba(148, 163, 184, 0.08);
+        color: var(--text);
+      }
+
+      .paper {
+        width: 100%;
+        min-height: 70vh;
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text);
+        padding: 20px 18px;
+        font-size: 1.08rem;
+        line-height: 1.7;
+        resize: vertical;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="topbar">
+        <h1>📄 Story Paper</h1>
+        <div class="button-row">
+          <button class="ghost" type="button" id="backHome">← Back to AI Lab</button>
+          <button class="primary" type="button" id="sendToAi">🚀 Send to AI Crew</button>
+        </div>
+      </div>
+
+      <textarea id="storyDocument" class="paper" placeholder="Write your story, idea, chapter, paragraph, or full draft here... Then send it to the AI crew to edit, improve, and finish it."></textarea>
+    </div>
+
+    <script>
+      const backHomeButton = document.getElementById('backHome');
+      const sendToAiButton = document.getElementById('sendToAi');
+      const storyDocument = document.getElementById('storyDocument');
+
+      const savedDraft = localStorage.getItem('storypaper-draft');
+      if (savedDraft) {
+        storyDocument.value = savedDraft;
+      }
+
+      backHomeButton.addEventListener('click', () => {
+        localStorage.setItem('storypaper-draft', storyDocument.value);
+        window.location.href = 'index.html';
+      });
+
+      sendToAiButton.addEventListener('click', () => {
+        const draft = storyDocument.value.trim();
+        if (!draft) {
+          alert('Please write a story or draft before sending it to the AI crew.');
+          return;
+        }
+
+        localStorage.setItem('storypaper-draft', draft);
+        localStorage.setItem('storypaper-auto-run', 'true');
+        window.location.href = 'index.html';
+      });
+    </script>
+  </body>
+</html>

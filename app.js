@@ -23,8 +23,8 @@ const workerAgents = [
 ];
 
 const state = {
-  apiBase: 'https://text.pollinations.ai/openai',
-  model: 'openai',
+  apiBase: '/api/chat',
+  model: 'gpt-4o',
   theme: 'dark',
   activeAgents: {
     writer: true,
@@ -41,6 +41,7 @@ const chatHistory = document.getElementById('chatHistory');
 const statusBadge = document.getElementById('statusBadge');
 const traceTemplate = document.getElementById('traceTemplate');
 const themeToggle = document.getElementById('themeToggle');
+const documentButton = document.getElementById('documentButton');
 const clearTraceButton = document.getElementById('clearTrace');
 const agentToggles = document.getElementById('agentToggles');
 
@@ -197,21 +198,19 @@ function normalizeGeneratedText(raw) {
 }
 
 async function callLLM({ system, user }) {
-  const apiBase = state.apiBase.replace(/\/+$/, '');
-  const safeModel = state.model.replace(/^\/+/, '').replace(/\/+$/, '');
-
-  const response = await fetch(`${apiBase}/chat/completions`, {
+  const response = await fetch('/api/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: safeModel,
+      model: state.model,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user }
       ],
-      temperature: 0.8
+      temperature: 0.8,
+      max_tokens: 800
     })
   });
 
@@ -219,11 +218,11 @@ async function callLLM({ system, user }) {
   try {
     data = await response.json();
   } catch (error) {
-    throw new Error('The live LLM returned unreadable output. Please try again.');
+    throw new Error('The Copilot LLM returned unreadable output. Please try again.');
   }
 
   if (!response.ok) {
-    const message = data?.error?.message || data?.message || data?.error || 'The built-in live LLM failed.';
+    const message = data?.error || data?.message || 'The Copilot live LLM failed.';
     throw new Error(message);
   }
 
@@ -337,6 +336,11 @@ async function orchestrateWritingCrew() {
 function wireEvents() {
   runButton.addEventListener('click', orchestrateWritingCrew);
 
+  documentButton.addEventListener('click', () => {
+    localStorage.setItem('storypaper-draft', promptInput.value || '');
+    window.location.href = 'document.html';
+  });
+
   promptInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -371,6 +375,16 @@ function seedDemoPrompt() {
 }
 
 function init() {
+  const docDraft = localStorage.getItem('storypaper-auto-run');
+  if (docDraft === 'true') {
+    const savedStory = localStorage.getItem('storypaper-draft') || '';
+    if (savedStory) {
+      promptInput.value = savedStory;
+      localStorage.removeItem('storypaper-auto-run');
+      setTimeout(() => orchestrateWritingCrew(), 200);
+    }
+  }
+
   loadSavedState();
   buildToggleUI();
   bindPresetButtons();
