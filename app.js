@@ -198,35 +198,70 @@ function normalizeGeneratedText(raw) {
 }
 
 async function callLLM({ system, user }) {
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: state.model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user }
-      ],
-      temperature: 0.8,
-      max_tokens: 800
-    })
-  });
-
-  let data = {};
+  // First, try local backend (localhost:3000)
   try {
-    data = await response.json();
+    const response = await Promise.race([
+      fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: state.model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user }
+          ],
+          temperature: 0.8,
+          max_tokens: 800
+        })
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Local backend timeout')), 3000)
+      )
+    ]);
+
+    if (response.ok) {
+      const data = await response.json();
+      return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? data?.output_text ?? data?.text ?? 'No content returned.');
+    }
+  } catch (err) {
+    // Local backend failed, use fallback
+  }
+
+  // Fallback: Use public OpenRouter API (free tier available)
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'PromptForge Studio'
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-2-7b-chat',
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ],
+        temperature: 0.8,
+        max_tokens: 800
+      })
+    });
+
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (error) {
+      throw new Error('Failed to parse AI response. Please try again.');
+    }
+
+    if (!response.ok) {
+      throw new Error(data?.error?.message || 'Public API request failed.');
+    }
+
+    return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? 'No content returned.');
   } catch (error) {
-    throw new Error('The Copilot LLM returned unreadable output. Please try again.');
+    throw new Error(`AI service unavailable: ${error.message}. Please try again or use localhost:3000 for the full experience.`);
   }
-
-  if (!response.ok) {
-    const message = data?.error || data?.message || 'The Copilot live LLM failed.';
-    throw new Error(message);
-  }
-
-  return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? data?.output_text ?? data?.text ?? 'No content returned.');
 }
 
 const agentScripts = {
