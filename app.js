@@ -26,6 +26,7 @@ const state = {
   apiBase: '/api/chat',
   model: 'gpt-4o',
   theme: 'dark',
+  isLocalhost: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
   activeAgents: {
     writer: true,
     editor: true,
@@ -48,6 +49,17 @@ const agentToggles = document.getElementById('agentToggles');
 const chatState = {
   messages: []
 };
+
+// Demo responses for GitHub Pages
+const demoResponses = {
+  writer: "Once upon a time, in a quiet corner of the world, there was a story waiting to be told. The characters stirred to life, each with their own dreams and fears, ready to embark on an adventure that would change everything. The words flowed like a river, carrying emotion and meaning through every sentence.",
+  editor: "Once upon a time, in a quiet corner of the world, there was a story waiting to be told. The characters stirred to life, each with their own dreams and fears, ready to embark on an adventure that would transform everything. The words flowed eloquently, like a river carrying profound emotion and meaning through every carefully crafted sentence.",
+  finisher: "Once upon a time, in a quiet corner of the world, there existed a story yearning to be told. The characters awakened with vivid distinctiveness, each harboring their own aspirations and trepidations, poised to embark upon a transformative journey. The prose cascaded eloquently, a river of profound emotion and artfully rendered meaning, each sentence a testament to literary craftsmanship."
+};
+
+function isGitHubPages() {
+  return window.location.hostname.includes('github.io');
+}
 
 function loadSavedState() {
   const saved = JSON.parse(localStorage.getItem('promptforge-state') || '{}');
@@ -198,62 +210,65 @@ function normalizeGeneratedText(raw) {
 }
 
 async function callLLM({ system, user }) {
-  // First, try local backend (localhost:3000)
-  try {
-    const response = await Promise.race([
-      fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: state.model,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user }
-          ],
-          temperature: 0.8,
-          max_tokens: 800
-        })
-      }),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('timeout')), 3000)
-      )
-    ]);
+  // For local development, try the real backend first
+  if (state.isLocalhost) {
+    try {
+      const response = await Promise.race([
+        fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: state.model,
+            messages: [
+              { role: 'system', content: system },
+              { role: 'user', content: user }
+            ],
+            temperature: 0.8,
+            max_tokens: 800
+          })
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('timeout')), 4000)
+        )
+      ]);
 
-    if (response.ok) {
-      const data = await response.json();
-      return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? data?.output_text ?? data?.text ?? 'No content returned.');
+      if (response.ok) {
+        const data = await response.json();
+        return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? 'No content returned.');
+      }
+    } catch (err) {
+      // Fall through to demo mode if localhost fails
     }
-  } catch (err) {
-    // Local backend not available
   }
 
-  // Fallback: Use free Hugging Face Inference API
-  try {
-    const response = await fetch('https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user }
-        ],
-        max_tokens: 400,
-        temperature: 0.8
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return normalizeGeneratedText(data.choices?.[0]?.message?.content ?? 'No response from AI.');
-    } else {
-      throw new Error('Public API rate limit or error');
+  // For GitHub Pages or when localhost isn't available, use demo mode
+  if (isGitHubPages() || !state.isLocalhost) {
+    await new Promise(resolve => setTimeout(resolve, 800)); // Simulate delay
+    
+    // Select a demo response based on the system prompt
+    let demoKey = 'writer';
+    if (system.includes('Editor') || system.includes('polish')) {
+      demoKey = 'editor';
+    } else if (system.includes('Finisher') || system.includes('final')) {
+      demoKey = 'finisher';
     }
-  } catch (error) {
-    // If both fail, show helpful message
-    throw new Error('AI service temporarily unavailable. For the best experience, run: node server.js (and then visit http://localhost:3000)');
+    
+    // Customize demo response based on user input
+    let response = demoResponses[demoKey];
+    
+    // If user asks for something specific, give a themed response
+    if (user.toLowerCase().includes('story')) {
+      response = 'Once upon a time, a young explorer discovered an ancient map hidden in a library corner. The parchment revealed secrets of a lost civilization, promising adventure beyond imagination.';
+    } else if (user.toLowerCase().includes('blog')) {
+      response = 'Today\'s digital landscape demands authentic voices. Content creators who blend AI efficiency with human creativity build lasting connections with their audiences.';
+    } else if (user.toLowerCase().includes('email')) {
+      response = 'I\'m excited to share something special with you. We\'ve built a tool that makes writing effortless, creative, and genuinely helpful. I think you\'ll love it!';
+    }
+    
+    return response;
   }
+
+  throw new Error('AI service unavailable.');
 }
 
 const agentScripts = {
@@ -306,6 +321,12 @@ async function orchestrateWritingCrew() {
   addMessage('user', userPrompt);
   finalOutput.textContent = 'The orchestrator is assigning the live AI crew...';
   finalOutput.classList.add('visible');
+  
+  // Show demo mode notice on GitHub Pages
+  if (isGitHubPages()) {
+    finalOutput.textContent = '🎬 Demo Mode Active\n\nYou\'re viewing a demo on GitHub Pages. For real AI responses using your GitHub Copilot token:\n\n1. Clone the repo\n2. Run: node server.js\n3. Visit: http://localhost:3000\n\n---\n\nShowing sample responses now...';
+  }
+  
   setStatus('Running', 'running');
   clearTrace();
   appendTrace('Orchestrator', 'Boss', 'Review the request and assign the live writing workflow.', 'Starting the multi-agent plan.');
@@ -353,7 +374,7 @@ async function orchestrateWritingCrew() {
     saveState();
   } catch (error) {
     const message = error.message || 'Something went wrong during the live LLM workflow.';
-    finalOutput.textContent = `Error: ${message}\n\nTry another public model endpoint or the correct Hugging Face model name.`;
+    finalOutput.textContent = `Error: ${message}\n\nFor real AI responses, run locally: node server.js`;
     addMessage('assistant', `Error: ${message}`);
     setStatus('Error', 'error');
     appendTrace('System', 'Error', 'Live AI workflow interrupted', message);
