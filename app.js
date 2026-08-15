@@ -50,39 +50,57 @@ const chatState = {
   messages: []
 };
 
-// Smart demo response generator for GitHub Pages
+// Smart demo response generator for GitHub Pages - Works with ANY topic
 function extractTopicFromPrompt(userPrompt) {
-  // Extract the main topic from prompts like "Write a story about X"
+  // Extract the main topic from virtually any prompt format
   
-  // Try multiple patterns for extracting topics
+  // Comprehensive pattern matching for topic extraction
   const patterns = [
-    /about\s+([^.!?]+)/i,                           // "about X"
-    /story\s+(?:of|involving)\s+([^.!?]+)/i,       // "story of X" or "story involving X"
-    /tell\s+(?:me\s+)?(?:a\s+)?(?:story\s+)?about\s+([^.!?]+)/i, // "tell me about X"
-    /write\s+(?:a\s+)?story\s+(?:about\s+)?([^.!?]+)/i, // "write a story about X"
-    /create\s+(?:a\s+)?story\s+(?:about\s+)?([^.!?]+)/i, // "create a story about X"
-    /compose\s+(?:a\s+)?story\s+(?:about\s+)?([^.!?]+)/i, // "compose a story about X"
-    /generate\s+(?:a\s+)?story\s+(?:about\s+)?([^.!?]+)/i, // "generate a story about X"
-    /featuring\s+([^.!?]+)/i,                       // "featuring X"
-    /involving\s+([^.!?]+)/i,                       // "involving X"
-    /where\s+([^.!?]+)\s+(?:is|are)/i,            // "where X is/are"
+    /about\s+([^.!?]+?)(?:\.|!|\?|$)/i,                      // "about X"
+    /story\s+(?:of|involving|with|featuring)\s+([^.!?]+?)(?:\.|!|\?|$)/i, // "story of/involving X"
+    /tell\s+(?:me\s+)?(?:a\s+)?(?:story|tale)?\s*(?:about|of)?\s+([^.!?]+?)(?:\.|!|\?|$)/i, // "tell me about X"
+    /write\s+(?:a\s+)?(?:story|tale|narrative)?\s*(?:about)??\s+([^.!?]+?)(?:\.|!|\?|$)/i, // "write story about X"
+    /create\s+(?:a\s+)?(?:story|tale)?\s*(?:about)?\s+([^.!?]+?)(?:\.|!|\?|$)/i, // "create story about X"
+    /compose\s+(?:a\s+)?(?:story|tale)?\s*(?:about)?\s+([^.!?]+?)(?:\.|!|\?|$)/i, // "compose story about X"
+    /generate\s+(?:a\s+)?(?:story|tale)?\s*(?:about)?\s+([^.!?]+?)(?:\.|!|\?|$)/i, // "generate story about X"
+    /featuring\s+([^.!?]+?)(?:\.|!|\?|$)/i,                  // "featuring X"
+    /involving\s+([^.!?]+?)(?:\.|!|\?|$)/i,                  // "involving X"
+    /where\s+([^.!?]+?)\s+(?:is|are|exists?)(?:\.|!|\?|$)/i, // "where X is"
+    /with\s+([^.!?]+?)(?:\.|!|\?|$)/i,                       // "with X"
+    /titled\s+(?:the\s+)?([^.!?]+?)(?:\.|!|\?|$)/i,         // "titled The X"
+    /about\s+(?:the\s+)?([^.!?]+?)(?:\.|!|\?|$)/i,          // "about the X"
+    /^(?:story|tale|narrative|epic)?\s*(?:about|of|with|featuring)?\s+(.+?)$/i, // Anything with story keywords
   ];
   
   // Try each pattern
   for (const pattern of patterns) {
     const match = userPrompt.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim().replace(/[.!?]*$/, '');
+    if (match && match[1] && match[1].trim().length > 0) {
+      let topic = match[1].trim().replace(/[.!?,;:—–-]+$/, '').trim();
+      if (topic.length > 2) return topic;
     }
   }
   
-  // Fallback: remove common prompt prefixes and return the rest
+  // Advanced fallback: remove story-related keywords and use the rest
   let cleaned = userPrompt
-    .replace(/^(write|create|compose|tell|generate|make|describe|illustrate|craft|imagine|explore|investigate|uncover|discover)\s+(?:a\s+)?(?:story|tale|narrative|epic|account)?\s*(?:about|of|involving|featuring|with|where)?\s*/i, '')
-    .replace(/^(a\s+|an\s+)/i, '')
+    .replace(/^(write|create|compose|tell|generate|make|describe|illustrate|craft|imagine|explore|investigate|uncover|discover|construct|develop|produce|render|draw|paint|sculpt|forge|mold|shape|fashion|form|build|establish|initiate|start|begin|commence|launch)\s+/i, '')
+    .replace(/^(?:a\s+|an\s+|the\s+)?(?:story|tale|narrative|epic|account|saga|chronicle|fable|legend|myth|yarn|chapter|book|novel|poem|sonnet|ballad|verse)\s+/i, '')
+    .replace(/^(?:about|of|involving|featuring|concerning|regarding|pertaining to|on|with)\s+/i, '')
+    .replace(/^(?:a\s+|an\s+|the\s+)?/i, '')
     .trim();
   
-  return cleaned || 'an amazing adventure';
+  // If we have something, return it
+  if (cleaned && cleaned.length > 2) return cleaned;
+  
+  // Final fallback for bare keywords or single words
+  if (userPrompt && userPrompt.trim().length > 0) {
+    // Just clean up and return what the user gave us
+    return userPrompt
+      .replace(/^(story|tale|narrative|epic|book|novel|poem|write|create|compose|tell|generate|about|of)\s+/i, '')
+      .trim() || 'an amazing adventure';
+  }
+  
+  return 'an amazing adventure';
 }
 
 function generateDemoStory(topic, agentType = 'writer') {
@@ -111,6 +129,22 @@ function generateDemoStory(topic, agentType = 'writer') {
     (t) => `${t} didn't come to save the world—it came to teach it. The lesson was uncomfortable at first. It challenged everything people believed about themselves and their reality. But gradually, as people grappled with the implications, something shifted. They began to see possibilities they'd never imagined. They began to understand themselves differently. And in understanding themselves through ${t}, they began to transform. The transformation was slow and profound. It couldn't be rushed or forced. But once it started, it was inevitable. ${t} was like a seed planted in consciousness, and now it was growing. The world was becoming something new, something better, something that could finally handle the truth of ${t}.`,
     
     (t) => `An old prophecy spoke of ${t}. Written thousands of years ago by someone who had glimpsed the future, it had been dismissed as the ramblings of a mystic. But now, as events unfolded exactly as the prophecy described, people began to pay attention. How could someone have known about ${t} so long ago? What else did the prophecy say? As they studied the ancient text more carefully, they realized something terrifying and wonderful: the prophecy wasn't predicting the future. It was describing something eternal, something that had always existed. ${t} wasn't new. Humanity was finally old enough to see it.`,
+    
+    (t) => `Nobody wanted to believe what they were seeing. But the evidence was undeniable. ${t} was real, and it was changing everything. The first reports came in slowly, from scattered locations around the world. Then the reports multiplied. Within days, everyone knew about ${t}. Within weeks, ${t} had become the center of human civilization. Scientists raced to understand it. Governments scrambled to respond to it. Ordinary people wove it into their daily lives. And with each passing moment, ${t} revealed new aspects of itself—unexpected, beautiful, terrifying, wonderful. Humanity had stumbled upon something that would define the rest of its existence.`,
+    
+    (t) => `In the quiet moments before dawn, when the world was still half-asleep, ${t} came into being. The moment was barely noticed. A few people felt it—a shift in the air, a change in the fabric of reality itself. They tried to describe it to others, but words seemed inadequate. How do you explain ${t} to someone who hasn't experienced it? How do you make them understand what you've witnessed? But as the hours passed, more people felt it. The evidence accumulated. And slowly, impossibly, everyone had to accept that ${t} was real. The world had changed. And there was no going back.`,
+    
+    (t) => `${t} was calling to us, and we were finally learning to listen. The signals had always been there, hidden in plain sight, waiting for us to develop the sensitivity to perceive them. But now that we could hear ${t}, we couldn't ignore it. Every person who truly understood ${t} felt compelled to share that understanding with others. And each person who learned about ${t} became a vessel for its message, a conduit for its power. A network of awareness was forming, a global consciousness centered on ${t}. Something was awakening in humanity—something old, something new, something that had always been waiting for this moment.`,
+    
+    (t) => `At first, it seemed impossible. The existence of ${t} contradicted everything science had taught us. But then the evidence started arriving—from research labs, from observation, from lived experience. It became harder to deny. The skeptics held out the longest, but even they eventually had to admit: ${t} was real. And if ${t} was real, then everything they thought they knew about how the world worked had to be revised. Scientists began the painstaking process of building new models of reality that incorporated ${t}. And with each new model, the picture became more complete, more beautiful, more astonishing.`,
+    
+    (t) => `The first person to understand ${t} completely was standing in their garden when it hit them. A sudden clarity, a moment of profound recognition. They understood, finally, what ${t} meant. What ${t} was. What ${t} could become. They rushed to write it down, to capture this understanding before it slipped away like a dream. But writing was inadequate. The understanding transcended language. Still, they tried. And when others read what they had written, some of them experienced it too—that moment of recognition, that sudden understanding of ${t}. The understanding spread from person to person, like light traveling through darkness.`,
+    
+    (t) => `There was always something off about the world, and now we finally knew why. ${t} had been hiding in the shadows, influencing events, guiding the course of history. Once we recognized it, everything made sense. Historical events that had seemed random now revealed their patterns. Art and music that had seemed ahead of their time were actually responses to the presence of ${t}. The entire trajectory of human civilization suddenly appeared in a new light, illuminated by understanding of ${t}. We had been working toward this moment all along, whether we knew it or not.`,
+    
+    (t) => `The child's imagination had always been more accurate than adults gave it credit for. And now, looking back, people realized that children had been trying to tell them about ${t} all along. In their drawings and their stories and their play, the truth about ${t} had always been hiding. If only we had listened more carefully. If only we had taken seriously the wisdom of childhood wonder. Now, as ${t} emerged into the light, people began to study children's art with new eyes. And everywhere they looked, they found evidence that children had known. Children had always known.`,
+    
+    (t) => `${t} had been waiting for humanity to evolve enough to understand it. It was a teacher, patient and wise, waiting for its students to mature. And finally, we were ready. The moment when humanity understood ${t} was the moment when childhood ended and adulthood began. We could no longer hide in ignorance. We could no longer pretend that the world was simple and knowable. We had to grow up and face the beautiful complexity of ${t}. And in growing up, we grew into ourselves, into our full potential as a species capable of comprehending the magnificent truth of ${t}.`,
   ];
 
   const editorTemplates = [
@@ -133,6 +167,14 @@ function generateDemoStory(topic, agentType = 'writer') {
     (t) => `In this pivotal moment of human history, ${t} stands as a beacon of possibility and transformation. We have the privilege and responsibility to witness its emergence and participate in humanity's response. The choices we make now, the questions we ask, the investigations we pursue—all will shape not only our understanding of ${t} but our future as a species. Some view ${t} with trepidation. Others see in it unlimited potential. Most experience a complex mixture of both. This is appropriate. ${t} deserves our respect, our caution, our enthusiasm, and our wisdom. As we move forward, we do so knowing that the world will never be the same. We do so knowing that we are part of something truly extraordinary.`,
     
     (t) => `The scientific community's response to ${t} has been marked by both rigorous skepticism and growing acceptance. The evidence is compelling. The implications are profound. But what perhaps most excites researchers is the realization that we have merely begun to understand ${t}. Entire new fields of study are emerging. New technologies are being developed specifically to investigate ${t}. New theories are being proposed daily. And with each new discovery, the picture becomes clearer, more complex, more wondrous. We stand at the threshold of a golden age of discovery, an age in which ${t} plays a central role. The mysteries are deep, but humanity's capacity for understanding is deeper still.`,
+    
+    (t) => `${t} has proven to be far more complex and multifaceted than initial research suggested. Each layer of investigation reveals new dimensions, new possibilities, new implications. The interdisciplinary teams studying ${t} report that collaboration across fields has been essential—insights from one discipline illuminate challenges in another. The holistic understanding of ${t} that is emerging represents a new paradigm in how humans approach knowledge and discovery. No single field of study can contain ${t}. It overflows all boundaries, connecting all domains of human knowledge in unexpected and beautiful ways.`,
+    
+    (t) => `The cultural impact of ${t} has been as significant as its scientific implications. Artists have been inspired by ${t}. Musicians have incorporated its principles into their compositions. Poets have attempted to capture its essence in verse. The cultural response to ${t} reflects a deep human need to integrate new knowledge into our understanding of beauty, meaning, and truth. As culture and science dance together around ${t}, they create something entirely new—a synthesis that transcends both.`,
+    
+    (t) => `Institutions worldwide have begun reorganizing themselves in light of the reality of ${t}. Universities are establishing research centers dedicated to understanding ${t}. Governments are incorporating understanding of ${t} into policy decisions. Businesses are exploring how to apply knowledge of ${t} to create value. Every human institution is being touched by the implications of ${t}, and in each case, that institution emerges transformed. The world is slowly reorganizing itself around ${t} as its central principle.`,
+    
+    (t) => `The personal impact of genuinely understanding ${t} has been remarkable and consistent across individuals. People report profound shifts in their priorities, relationships, and life direction. Those who have integrated understanding of ${t} into their consciousness describe feeling more connected to themselves, to others, and to the universe. It is not uncommon for someone who has truly comprehended ${t} to report that they feel they are living a different life—not because circumstances have changed, but because their perception of reality has been fundamentally altered.`,
   ];
 
   const finisherTemplates = [
@@ -155,6 +197,20 @@ function generateDemoStory(topic, agentType = 'writer') {
     (t) => `As we continue our journey of understanding ${t}, we realize that this is not a destination to be reached but a way of being to be embodied. ${t} is not something to be conquered or possessed but something with which we might gradually align ourselves. The process is lifelong, ever-deepening, perpetually surprising. Each moment offers a new opportunity to perceive ${t} from a different angle, to understand it more deeply, to let it transform us more completely. And in this surrendered surrender to the process, we discover that we are not studying ${t}—${t} is studying us, revealing to us the secrets we have been hiding from ourselves, calling us toward the beings we are capable of becoming.`,
     
     (t) => `The ultimate teaching of ${t} is perhaps the simplest and most profound: that reality is far more wondrous than we dared to imagine, and that humanity has vastly greater potential than we were taught to believe. ${t} is the permission slip, the key, the initiatory experience that allows us to step beyond our self-imposed limitations and embrace the fullness of what we might become. This is not escape or fantasy. This is not denial of challenges or difficulties. This is the clear-eyed recognition that we are capable of far more than we believe, connected to forces far greater than we acknowledge, and invited to participate in something of incomparable significance. This is the gift and the invitation of ${t}. This is the call of our time.`,
+    
+    (t) => `In the great tapestry of cosmic existence, ${t} represents a golden thread woven with intention and meaning. To perceive this thread is to see the entire tapestry differently—not as random chaos but as an intricate design of astonishing beauty and purposefulness. ${t} is both the revealer and the revelation, both the question and the answer, both the journey and the destination. Those who have truly encountered ${t} report that their understanding of themselves, their relationships, and their place in the universe has been fundamentally and permanently transformed. This is not a temporary state but a permanent elevation of consciousness that cannot be undone. Once you have glimpsed ${t}, you are forever changed.`,
+    
+    (t) => `${t} emerges in human consciousness like spring emerging from winter—inevitable, powerful, life-giving. It speaks to something deep within us, something that has been dormant but never dead. In recognizing ${t}, we recognize a part of ourselves that we had forgotten or been taught to deny. This self-recognition is the beginning of healing, of wholeness, of transformation. As we continue to integrate the reality of ${t} into our consciousness, we undergo a metamorphosis that is as profound as the transformation from caterpillar to butterfly. We are not becoming something new. We are becoming what we were always meant to be. ${t} is the catalyst for that becoming.`,
+    
+    (t) => `The wisdom embedded in ${t} is ancient beyond measure, yet it arrives as something entirely new. This paradox reflects a deeper truth: that the greatest discoveries are always simultaneous un-coverings of what has always been present. ${t} was never created or invented. It has always existed, waiting for humanity to develop the capacity to perceive it. And now that we can perceive it, we must ask: what other ancient truths are waiting in the shadows, waiting for us to evolve enough to see them? ${t} is not the end of our awakening. It is only the beginning.`,
+    
+    (t) => `To live in the age of ${t}} is to live at the threshold between two worlds—the old world of limited understanding and the new world of expanded awareness. We stand with one foot in each realm, experiencing the tension and the possibility of transition. This liminal space is where genuine transformation occurs. This is where we shed old identities and embrace new ones. This is where ${t} does its most profound work. And though the transition is challenging, those who embrace it discover a richness of life, a depth of meaning, and a connection to others that transcends anything previously imagined. This is the promise and the challenge of ${t}.`,
+    
+    (t) => `In the end, after all questions have been asked and all answers have been discovered, what remains is simple: ${t} matters. It matters because we matter. It matters because reality matters. It matters because consciousness matters. The revelation of ${t} is ultimately a revelation of value—the value of existence itself, the value of awareness itself, the value of the miraculous fact that we are here, aware, capable of understanding ourselves and our universe. ${t} teaches us that nothing is trivial, that everything is sacred, that every moment of existence is precious beyond measure. This is its deepest gift to us.`,
+    
+    (t) => `Like a song that resonates through time, ${t} echoes through every layer of human experience and understanding. Its melody is heard in the equations of mathematicians, in the visions of artists, in the meditations of mystics, in the dreams of children. Everyone hears it in their own key, but all recognize the beauty and the truth of the fundamental note. ${t} unites humanity in a common understanding that transcends all the boundaries—cultural, religious, ideological—that have separated us. In this unity, something new is being born. A humanity that knows itself as one, that understands its deep interconnection with all things. This is what ${t} makes possible.`,
+    
+    (t) => `We are the generation that will be remembered as the generation that recognized ${t}. We will be the ancestors of a world transformed by this recognition. Our descendants will look back at this moment and understand it as the great turning point—the moment when everything changed, when humanity came of age. They will see the time before ${t} as humanity's childhood and the time after as our entry into maturity. They will honor our courage, our stubbornness, our willingness to question and to grow. And they will carry forward the legacy of ${t}, building on our understanding, discovering new dimensions, new applications, new wonders. We are privileged to stand at this threshold.`,
   ];
 
   // Select a random template from each agent type
